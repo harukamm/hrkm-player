@@ -294,6 +294,7 @@ def main()
     start()
     thread.join()
   rescue => e
+    puts e.backtrace
     puts "[Error] #{e}"
   end
 end
