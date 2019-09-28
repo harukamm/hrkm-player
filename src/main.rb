@@ -244,7 +244,7 @@ def handle_interrupting_operator()
     $status[:stopwatch] = nil
   elsif op == "stop"
     $status[:stop?] = !$status[:stop?]
-    $status[:stopwatch].stop
+    $status[:stopwatch].stop if $status[:stopwatch]
   elsif op == "rand"
     handle_random()
   elsif op.start_with?("fltr")
@@ -258,7 +258,7 @@ def validate_status()
   index = $status[:playing_index]
   if index < 0
     index = 0
-  else
+  elsif $status[:target_songs].size != 0
     index %= $status[:target_songs].size
   end
   $status[:playing_index] = index
