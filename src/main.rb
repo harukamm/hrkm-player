@@ -75,10 +75,10 @@ $pid = nil
 $player_pid = nil
 $interrupting_operator = nil
 $assets = []
-$settings = {:repeat? => false,
-             :filter => nil,
-             :random? => false}
 $status = {:playing_index => -1,
+           :filter => {},
+           :repeat? => false,
+           :random? => false,
            :target_songs => [],
            :start_playing_at => "",}
 
@@ -119,12 +119,23 @@ def play_file(song)
   return spawn("ffplay \"#{song[:path]}\" -nodisp -loglevel -8 -autoexit -ss 100")
 end
 
+def matched?(pattern, str)
+  return !pattern || str.downcase.include?(pattern.downcase)
+end
+
 def target_songs()
-  # TODO: Apply the filter, support random play
+  # TODO: Support random play
   songs = []
+  filter = $status[:filter]
+  puts filter
   $assets.each do |artist|
+    next if !matched?(filter[:artist], artist[:name])
     artist[:albums].each do |album|
-      songs.concat(album[:songs])
+      next if !matched?(filter[:album], album[:title])
+      album[:songs].each do |song|
+         next if !matched?(filter[:song], song[:title])
+         songs.push(song)
+      end
     end
   end
   return songs
@@ -140,14 +151,37 @@ def play_current_song()
   $player_pid = nil
 end
 
+def handle_filter(query)
+  filter = {}
+  query.split(/:/).each do |q|
+    next if q.size < 3
+    type = q[0]
+    val = q[1..-1]
+    puts "[Log] Filter #{type}, #{val}"
+    case type
+      when 'a'
+        filter[:artist] = val
+      when 'b'
+        filter[:album] = val
+      when 't'
+        filter[:song] = val
+    end
+  end
+  $status[:filter] = filter if filter != {}
+  $status[:target_songs] = target_songs()
+  $status[:playing_index] = 0
+end
+
 def handle_interrupting_operator()
-  case $interrupting_operator
-    when "next"
-      $status[:playing_index] += 1
-    when "prev"
-      $status[:playing_index] -= 1
-    else
-      puts "[Warn] Failed to handle unknown operator #{$interrupting_operator}"
+  op = $interrupting_operator
+  if op == "next"
+    $status[:playing_index] += 1
+  elsif op == "prev"
+    $status[:playing_index] -= 1
+  elsif op.start_with?("fltr")
+    handle_filter(query)
+  else
+    puts "[Warn] Failed to handle unknown operator #{op}"
   end
 end
 
