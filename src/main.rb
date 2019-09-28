@@ -5,7 +5,31 @@ require 'socket'
 
 def assert(v)
   if !v
+    puts caller
     raise 'Assertion failed'
+  end
+end
+
+#####################################################
+# Refer: https://gist.github.com/ikenna/6422329
+class Stopwatch
+  def initialize()
+    @start = Time.now
+    @stop = nil
+  end
+
+  def stop
+    if @stop == nil # stop
+      @stop = Time.now
+    elsif # restart
+      offset = @stop - @start
+      @start = Time.now - offset
+      @stop = nil
+    end
+  end
+
+  def elapsed_time
+    return Time.now - @start
   end
 end
 
@@ -79,8 +103,9 @@ $status = {:playing_index => -1,
            :filter => {},
            :repeat? => false,
            :random? => false,
+           :stop? => false,
            :target_songs => [],
-           :start_playing_at => "",}
+           :stopwatch => nil}
 
 def interrupt_now!(text)
   assert(!$interrupting_operator)
@@ -116,7 +141,18 @@ end
 def play_file(song)
   assert(!$player_pid)
   puts "[Log] Playing #{song[:title]}"
-  return spawn("ffplay \"#{song[:path]}\" -nodisp -loglevel -8 -autoexit -ss 100")
+  watch = $status[:stopwatch] || Stopwatch.new
+  watch.stop
+  offset = watch.elapsed_time.floor
+  pid = spawn("ffplay \"#{song[:path]}\" -nodisp -loglevel -8 -autoexit -ss #{offset}")
+  watch.stop
+  $status[:stopwatch] = watch
+  return pid
+end
+
+def play_pause()
+  assert(!$player_pid)
+  return spawn("tail -f /dev/null")
 end
 
 def matched?(pattern, str)
@@ -147,7 +183,11 @@ def play_current_song()
   index = $status[:playing_index]
   assert(songs[index])
 
-  $player_pid = play_file(songs[index])
+  if $status[:stop?]
+    $player_pid = play_pause()
+  else
+    $player_pid = play_file(songs[index])
+  end
   Process.wait $player_pid
   $player_pid = nil
 end
@@ -191,14 +231,20 @@ def handle_filter(query)
   $status[:filter] = filter if filter != {}
   $status[:target_songs] = target_songs()
   $status[:playing_index] = 0
+  $status[:stopwatch] = nil
 end
 
 def handle_interrupting_operator()
   op = $interrupting_operator
   if op == "next"
     $status[:playing_index] += 1
+    $status[:stopwatch] = nil
   elsif op == "prev"
     $status[:playing_index] -= 1
+    $status[:stopwatch] = nil
+  elsif op == "stop"
+    $status[:stop?] = !$status[:stop?]
+    $status[:stopwatch].stop
   elsif op == "rand"
     handle_random()
   elsif op.start_with?("fltr")
@@ -228,6 +274,7 @@ def start()
       $interrupting_operator = nil
     else
       $status[:playing_index] += 1
+      $status[:stopwatch] = nil
     end
 
     validate_status()
