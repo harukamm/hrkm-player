@@ -124,7 +124,6 @@ def matched?(pattern, str)
 end
 
 def target_songs()
-  # TODO: Support random play
   songs = []
   filter = $status[:filter]
   puts filter
@@ -138,6 +137,8 @@ def target_songs()
       end
     end
   end
+  puts $status[:random?]
+  songs.shuffle! if $status[:random?]
   return songs
 end
 
@@ -149,6 +150,26 @@ def play_current_song()
   $player_pid = play_file(songs[index])
   Process.wait $player_pid
   $player_pid = nil
+end
+
+def handle_random()
+  current_song = $status[:target_songs][$status[:playing_index]]
+  assert(current_song)
+
+  newval = !$status[:random?]
+  $status[:random?] = newval
+  newsongs = target_songs()
+  newindex = newsongs.index { |song| song[:id] == current_song[:id] }
+
+  if newval
+    current_song_ = newsongs[newindex]
+    newsongs[newindex] = newsongs[0]
+    newsongs[0] = current_song_
+    newindex = 0
+  end
+
+  $status[:playing_index] = newindex
+  $status[:target_songs] = newsongs
 end
 
 def handle_filter(query)
@@ -178,6 +199,8 @@ def handle_interrupting_operator()
     $status[:playing_index] += 1
   elsif op == "prev"
     $status[:playing_index] -= 1
+  elsif op == "rand"
+    handle_random()
   elsif op.start_with?("fltr")
     handle_filter(query)
   else
