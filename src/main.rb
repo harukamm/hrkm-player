@@ -101,11 +101,13 @@ $interrupting_operator = nil
 $assets = []
 $status = {:playing_index => -1,
            :filter => {},
-           :repeat? => false,
+           :repeat? => true,
            :random? => false,
            :stop? => false,
            :target_songs => [],
            :stopwatch => nil}
+# TODO: lock global variable
+# TODO: use queue to store the operators
 
 def interrupt_now!(text)
   assert(!$interrupting_operator)
@@ -256,9 +258,12 @@ end
 
 def validate_status()
   index = $status[:playing_index]
+  size = $status[:target_songs].size
   if index < 0
     index = 0
-  elsif $status[:target_songs].size != 0
+  elsif size == 0 || size <= index && !$status[:repeate?]
+    $status[:stop?] = true
+  else
     index %= $status[:target_songs].size
   end
   $status[:playing_index] = index
