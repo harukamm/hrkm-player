@@ -73,25 +73,20 @@ end
 
 $pid = nil
 $player_pid = nil
-$need_restart_loop = false
+$interrupting_operator = nil
 $assets = []
 $settings = {:repeat? => false,
              :filter => nil,
              :random? => false}
-$status = {:playing => "",
+$status = {:playing_index => -1,
+           :target_songs => [],
            :start_playing_at => "",}
 
-def handle_operator(op)
-  case op
-  when "next"
-    ""
-  when "prev"
-    ""
-  when "setrand"
-    ""
-  else
-    ""
-  end
+def interrupt_now!(text)
+  assert(!$interrupting_operator)
+
+  $interrupting_operator = text
+  kill_player_proc()
 end
 
 def gen_serv_thread()
@@ -103,7 +98,7 @@ def gen_serv_thread()
     while true
       text, sender = server.recvfrom(16)
       puts "[Log] Receive text #{text}"
-      handle_operator()
+      interrupt_now!(text)
     end
   end
   return t
@@ -121,31 +116,71 @@ end
 def play_file(song)
   assert(!$player_pid)
   puts "[Log] Playing #{song[:title]}"
-  $player_pid = spawn("ffplay \"#{song[:path]}\" -nodisp -loglevel -8 -autoexit -ss 100")
+  return spawn("ffplay \"#{song[:path]}\" -nodisp -loglevel -8 -autoexit -ss 100")
 end
 
-def play_loop()
-  # TODO: Apply the filter
-  $assets[0][:albums][0][:songs].each do |song|
-    play_file(song)
-    Process.wait $player_pid
-    $player_pid = nil
-    if $need_restart_loop
-      break
+def target_songs()
+  # TODO: Apply the filter, support random play
+  songs = []
+  $assets.each do |artist|
+    artist[:albums].each do |album|
+      songs.concat(album[:songs])
     end
   end
+  return songs
+end
+
+def play_current_song()
+  songs = $status[:target_songs]
+  index = $status[:playing_index]
+  assert(songs[index])
+
+  $player_pid = play_file(songs[index])
+  Process.wait $player_pid
+  $player_pid = nil
+end
+
+def handle_interrupting_operator()
+  case $interrupting_operator
+    when "next"
+      $status[:playing_index] += 1
+    when "prev"
+      $status[:playing_index] -= 1
+    else
+      puts "[Warn] Failed to handle unknown operator #{$interrupting_operator}"
+  end
+end
+
+def validate_status()
+  index = $status[:playing_index]
+  if index < 0
+    index = 0
+  else
+    index %= $status[:target_songs].size
+  end
+  $status[:playing_index] = index
 end
 
 def start()
   while true do
     sleep(0.1)
-    play_loop()
-    break if !$need_restart_loop
+    play_current_song()
+
+    if $interrupting_operator
+      handle_interrupting_operator()
+      $interrupting_operator = nil
+    else
+      $status[:playing_index] += 1
+    end
+
+    validate_status()
   end
 end
 
 def init()
   $assets = load_assets()
+  $status[:playing_index] = 0
+  $status[:target_songs] = target_songs()
 end
 
 def main()
