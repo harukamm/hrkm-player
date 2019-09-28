@@ -1,6 +1,7 @@
 #!/usr/bin/ruby
 
 require 'securerandom'
+require 'socket'
 
 def assert(v)
   if !v
@@ -80,6 +81,34 @@ $settings = {:repeat? => false,
 $status = {:playing => "",
            :start_playing_at => "",}
 
+def handle_operator(op)
+  case op
+  when "next"
+    ""
+  when "prev"
+    ""
+  when "setrand"
+    ""
+  else
+    ""
+  end
+end
+
+def gen_serv_thread()
+  server = UDPSocket.new
+  server.bind("localhost", 8098)
+
+  t = Thread.new(server) do |serv|
+    puts "[Log] Thread starts"
+    while true
+      text, sender = server.recvfrom(16)
+      puts "[Log] Receive text #{text}"
+      handle_operator()
+    end
+  end
+  return t
+end
+
 def kill_player_proc()
   return if ! $player_pid
   begin
@@ -121,7 +150,13 @@ end
 
 def main()
   init()
-  start()
+  begin
+    thread = gen_serv_thread()
+    start()
+    thread.join()
+  rescue => e
+    puts "[Error] #{e}"
+  end
 end
 
 main()
