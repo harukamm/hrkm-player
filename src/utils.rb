@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 require 'socket'
+require 'json'
 
 def assert(v)
   if !v
@@ -9,10 +10,14 @@ def assert(v)
   end
 end
 
-def submit_log(host, port, text)
+def submit_log(host, port, type, log)
+  data = {:data => log,
+          :type => type,
+          :timestamp => Time.new}
+  data = JSON.generate(data)
   socket = TCPSocket.open(host, port)
   begin
-    @socket.puts text
+    socket.puts data
   rescue IOError => e
     puts e.message
     puts e.backtrace

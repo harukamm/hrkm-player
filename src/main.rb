@@ -3,12 +3,10 @@
 require 'securerandom'
 require 'socket'
 
+load 'constants.rb'
 load 'stopwatch.rb'
 load 'load_assets.rb'
 load 'utils.rb'
-load 'log_server.rb'
-
-DIR_ASSETS = "../assets"
 
 $pid = nil
 $player_pid = nil
@@ -24,6 +22,11 @@ $status = {:playing_index => -1,
 # TODO: lock global variable
 # TODO: use queue to store the operators
 
+def log(type='Log', text)
+  puts "[#{type}] #{text}"
+  submit_log(LOG_HOST, LOG_PORT, type, text)
+end
+
 def interrupt_now!(text)
   assert(!$interrupting_operator)
 
@@ -33,13 +36,13 @@ end
 
 def gen_serv_thread()
   server = UDPSocket.new
-  server.bind("localhost", 8098)
+  server.bind(PLAYER_HOST, PLAYER_PORT)
 
   t = Thread.new(server) do |serv|
-    puts "[Log] Thread starts"
+    log 'Server thread starts~'
     while true
       text, sender = server.recvfrom(16)
-      puts "[Log] Receive text #{text}"
+      log "Receive #{text}"
       interrupt_now!(text)
     end
   end
@@ -51,13 +54,13 @@ def kill_player_proc()
   begin
     Process.kill(9, $player_pid)
   rescue => e
-    puts "[Error] Failed to kill pid #{pid} with error #{e}"
+    log('Error', "Failed to kill pid #{pid} with error #{e}")
   end
 end
 
 def play_file(song)
   assert(!$player_pid)
-  puts "[Log] Playing #{song[:title]}"
+  log "Playing #{song[:title]}"
   watch = $status[:stopwatch] || Stopwatch.new
   watch.stop
   offset = watch.elapsed_time.floor
@@ -79,7 +82,6 @@ end
 def target_songs()
   songs = []
   filter = $status[:filter]
-  puts filter
   $assets.each do |artist|
     next if !matched?(filter[:artist], artist[:name])
     artist[:albums].each do |album|
@@ -90,7 +92,6 @@ def target_songs()
       end
     end
   end
-  puts $status[:random?]
   songs.shuffle! if $status[:random?]
   return songs
 end
@@ -124,7 +125,6 @@ def handle_random()
     newsongs[0] = current_song_
     newindex = 0
   end
-
   $status[:playing_index] = newindex
   $status[:target_songs] = newsongs
 end
@@ -135,7 +135,7 @@ def handle_filter(query)
     next if q.size < 3
     type = q[0]
     val = q[1..-1]
-    puts "[Log] Filter #{type}, #{val}"
+    log "Filter #{type}, #{val}"
     case type
       when 'a'
         filter[:artist] = val
@@ -165,9 +165,9 @@ def handle_interrupting_operator()
   elsif op == "rand"
     handle_random()
   elsif op.start_with?("fltr")
-    handle_filter(query)
+    handle_filter(op[4..-1])
   else
-    puts "[Warn] Failed to handle unknown operator #{op}"
+    log('Warn', "Failed to handle unknown operator #{op}")
   end
 end
 
@@ -196,15 +196,18 @@ def start()
       $status[:playing_index] += 1
       $status[:stopwatch] = nil
     end
-
     validate_status()
+    cloned = $status.clone
+    cloned.delete(:target_songs)
+    log "End of unit #{cloned}"
   end
 end
 
 def init()
-  $assets = load_assets()
+  $assets = load_assets(DIR_ASSETS)
   $status[:playing_index] = 0
   $status[:target_songs] = target_songs()
+  # log "Assets #{$assets}"
 end
 
 def main()
@@ -214,8 +217,8 @@ def main()
     start()
     thread.join()
   rescue => e
-    puts e.backtrace
-    puts "[Error] #{e}"
+    log('Error', "#{e}, #{e.backtrace}")
+    kill_player_proc()
   end
 end
 
