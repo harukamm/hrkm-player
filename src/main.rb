@@ -1,99 +1,14 @@
-#!/usr/bin/ruby
+#!/usr/bin/env ruby
 
 require 'securerandom'
 require 'socket'
 
-def assert(v)
-  if !v
-    puts caller
-    raise 'Assertion failed'
-  end
-end
+load 'stopwatch.rb'
+load 'load_assets.rb'
+load 'utils.rb'
+load 'log_server.rb'
 
-#####################################################
-# Refer: https://gist.github.com/ikenna/6422329
-class Stopwatch
-  def initialize()
-    @start = Time.now
-    @stop = nil
-  end
-
-  def stop
-    if @stop == nil # stop
-      @stop = Time.now
-    elsif # restart
-      offset = @stop - @start
-      @start = Time.now - offset
-      @stop = nil
-    end
-  end
-
-  def elapsed_time
-    return Time.now - @start
-  end
-end
-
-#####################################################
-
-DIR_ASSETS = "./assets"
-
-def regular_dir?(path)
-  return path[-1] != "." && path[-2..-1] != ".." && File.directory?(path)
-end
-
-def regular_file?(path)
-  return path[-1] != "." && path[-2..-1] != ".." && File.file?(path)
-end
-
-def load_assets()
-  assets = []
-  song_id = 0
-  Dir.open(DIR_ASSETS) do |artist_dirs|
-    artist_dirs.each do |artist_dir|
-      path1 = File.join(DIR_ASSETS, artist_dir)
-      next if !regular_dir?(path1)
-
-      albums = []
-      Dir.open(path1).each do |album_dir|
-        path2 = File.join(path1, album_dir)
-        next if !regular_dir?(path2)
-
-        album_songs = []
-        track = 0
-
-        Dir.open(path2).each do |song|
-          path3 = File.join(path2, song)
-          next if !regular_file?(path3)
-          next if File.extname(path3) != ".mp3"
-          song = {:title => File.basename(path3, ".*"),
-                  :path  => path3,
-                  :id => song_id,
-                  :track_num => track}
-          album_songs.push(song)
-          track += 1
-          song_id += 1
-        end
-
-        next if album_songs.size == 0
-
-        album = {:title => album_dir,
-                 :path => path2,
-                 :songs => album_songs}
-        albums.push(album)
-      end
-
-      next if albums.size == 0
-
-      artist = {:name => artist_dir,
-                :path => path1,
-                :albums => albums}
-      assets.push(artist)
-    end
-  end
-  return assets
-end
-
-#####################################################
+DIR_ASSETS = "../assets"
 
 $pid = nil
 $player_pid = nil
