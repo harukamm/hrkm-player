@@ -14,7 +14,8 @@ $interrupting_operator = nil
 $assets = []
 $status = {:playing_index => -1,
            :filter => {},
-           :repeat? => true,
+           :repeat? => false,
+           :repeat_all? => true,
            :random? => false,
            :stop? => false,
            :target_songs => [],
@@ -162,6 +163,8 @@ def handle_interrupting_operator()
   elsif op == "stop"
     $status[:stop?] = !$status[:stop?]
     $status[:stopwatch].stop if $status[:stopwatch]
+  elsif op == "rept"
+    $status[:repeat?] = !$status[:repeat?]
   elsif op == "rand"
     handle_random()
   elsif op.start_with?("fltr")
@@ -176,7 +179,7 @@ def validate_status()
   size = $status[:target_songs].size
   if index < 0
     index = 0
-  elsif size == 0 || size <= index && !$status[:repeate?]
+  elsif size == 0 || size <= index && !$status[:repeat_all?]
     $status[:stop?] = true
   else
     index %= $status[:target_songs].size
@@ -193,7 +196,7 @@ def start()
       handle_interrupting_operator()
       $interrupting_operator = nil
     else
-      $status[:playing_index] += 1
+      $status[:playing_index] += $status[:repeat?] ? 0 : 1
       $status[:stopwatch] = nil
     end
     validate_status()
