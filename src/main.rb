@@ -36,13 +36,28 @@ def interrupt_now!(text)
 end
 
 def gen_serv_thread()
-  server = UDPSocket.new
-  server.bind(PLAYER_HOST, PLAYER_PORT)
+  server = TCPServer.open(PLAYER_HOST, PLAYER_PORT)
 
   t = Thread.new(server) do |serv|
     log 'Server thread starts~'
+    clients = []
     while true
-      text, sender = server.recvfrom(16)
+      rs, _ = IO.select([server] + clients)
+
+      if rs[0] == server
+        clients.push(server.accept)
+        next
+      end
+
+      conn = rs[0]
+      text = conn.gets
+
+      if text == nil
+        clients.delete(conn)
+        next
+      end
+
+      text = text.chomp
       log "Receive #{text}"
       interrupt_now!(text)
     end

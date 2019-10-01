@@ -4,13 +4,22 @@ require 'socket'
 load 'constants.rb'
 
 def main()
-  if ARGV.size != 1
+  if ARGV.size == 0
     raise "Not arg~"
   end
 
-  socket = UDPSocket.new
-  socket.send(ARGV[0], 0, PLAYER_HOST, PLAYER_PORT)
-  socket.close
+  socket = TCPSocket.open(PLAYER_HOST, PLAYER_PORT)
+  begin
+    ARGV.each do |argv|
+      sleep 0.5 # TODO: Remove after implementing operation queues~
+      socket.puts argv
+    end
+  rescue IOError => e
+    puts e.message
+    puts e.backtrace
+  ensure
+    socket.close
+  end
 
   puts "Just sent ^-^"
 end
