@@ -229,6 +229,7 @@ def init()
 end
 
 def main()
+  Process.setsid
   init()
   begin
     thread = gen_serv_thread()

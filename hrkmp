@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+
+SRC_PATH="$HOME/asobi/haruka-player/src"
+PID_PATH="$HOME/.hrkmplayer-pid"
+LOGSERVER_PID_PATH="$HOME/.hrkmplayer-logserver"
+
+PID=$(cat "$PID_PATH" 2>/dev/null)
+LOGSERVER_PID=$(cat "$LOGSERVER_PID_PATH" 2>/dev/null)
+
+rc=0
+
+fail() {
+  echo $1
+  exit 1
+}
+
+case "$1" in
+start)
+  [ "$PID" ] && fail "already up"
+
+  if [ ! "$LOGSERVER_PID" ]; then
+    ruby -C "$SRC_PATH" log_server.rb 1>/dev/null 2>&1 &
+    echo "$!" > "$LOGSERVER_PID_PATH"
+  fi
+
+  sleep 1
+  ruby -C "$SRC_PATH" main.rb 1>/dev/null 2>&1 &
+  echo "$!" > "$PID_PATH"
+  ;;
+stop)
+  [ "$PID" ] &&
+    kill -- -"$PID" && rm -f "$PID_PATH"
+  [ "$LOGSERVER_PID" ] &&
+    kill "$LOGSERVER_PID" && rm -f "$LOGSERVER_PID_PATH"
+  ;;
+status)
+  echo -n "harukam-player status: "
+  [ "$PID" ] && echo "UP" || echo "DOWN"
+  echo -n "harukam-player log-server status: "
+  [ "$LOGSERVER_PID" ] && echo "UP" || echo "DOWN"
+  ;;
+restart)
+  $0 stop
+  $0 start
+  rc=$?
+  ;;
+cmd)
+  ruby -C "$SRC_PATH" client.rb ${@:2} >/dev/null
+  ;;
+*)
+  echo $"Usage: $0 {start|stop|status|restart}"
+  exit 2
+esac
+
+exit $rc
